@@ -1,57 +1,74 @@
 const errors = require('restify-errors');
+const rjwt = require('restify-jwt-community');
 const Customer = require('../models/Customer');
+const config = require('../config');
+
 module.exports = server => {
-    //get customers
+    // Get Customers
     server.get('/customers', async (req, res, next) => {
-        try{
+        try {
             const customers = await Customer.find({});
             res.send(customers);
             next();
-        }catch (err) {
-            return next(new errors.InvalidContent(err));
+        } catch (err) {
+            return next(new errors.InvalidContentError(err));
         }
     });
 
-    //get single customer
+    // Get Single Customer
     server.get('/customers/:id', async (req, res, next) => {
-        try{
-            const customers = await Customer.findById(req.params.id);
-            res.send(customers);
-            next();
-        }catch (err) {
-            return next(new errors.ResourceNotFound(`There is no customer with id of ${req.params.id}`));
-        }
-    });
-
-    //add customers
-    server.post('/customers', async (req, res, next) => {
-        if(!req.is('application/json')) {
-            return next(new errors.InvalidContent("Expects 'application/json'"));
-        }
-        const {name, email, balance} = req.body;
-
-        const customer = new Customer({
-            name,
-            email,
-            balance
-        });
         try {
-            const newCustomer = await customer.save();
-            res.send(201);
+            const customer = await Customer.findById(req.params.id);
+            res.send(customer);
             next();
         } catch (err) {
-            return next(new errors.Internal(err.message));
+            return next(
+                new errors.ResourceNotFoundError(
+                    `There is no customer with the id of ${req.params.id}`
+                )
+            );
         }
     });
 
-    //update customer
-    server.put(
-        '/customers/:id',
+    // Add Customer
+    server.post(
+        '/customers',
+        rjwt({ secret: config.JWT_SECRET }),
         async (req, res, next) => {
             // Check for JSON
             if (!req.is('application/json')) {
                 return next(
-                    new errors.InvalidContent("Expects 'application/json'")
+                    new errors.InvalidContentError("Expects 'application/json'")
+                );
+            }
+
+            const { name, email, balance } = req.body;
+
+            const customer = new Customer({
+                name,
+                email,
+                balance
+            });
+
+            try {
+                const newCustomer = await customer.save();
+                res.send(201);
+                next();
+            } catch (err) {
+                return next(new errors.InternalError(err.message));
+            }
+        }
+    );
+
+    // Update Customer
+    server.put(
+        '/customers/:id',
+        rjwt({ secret: config.JWT_SECRET }),
+        async (req, res, next) => {
+            // Check for JSON
+            if (!req.is('application/json')) {
+                return next(
+                    new errors.InvalidContentError("Expects 'application/json'")
                 );
             }
 
@@ -64,7 +81,7 @@ module.exports = server => {
                 next();
             } catch (err) {
                 return next(
-                    new errors.ResourceNotFound(
+                    new errors.ResourceNotFoundError(
                         `There is no customer with the id of ${req.params.id}`
                     )
                 );
@@ -72,10 +89,10 @@ module.exports = server => {
         }
     );
 
-    //delete customer
     // Delete Customer
     server.del(
         '/customers/:id',
+        rjwt({ secret: config.JWT_SECRET }),
         async (req, res, next) => {
             try {
                 const customer = await Customer.findOneAndRemove({
@@ -85,12 +102,11 @@ module.exports = server => {
                 next();
             } catch (err) {
                 return next(
-                    new errors.ResourceNotFound(
+                    new errors.ResourceNotFoundError(
                         `There is no customer with the id of ${req.params.id}`
                     )
                 );
             }
         }
     );
-
 };
